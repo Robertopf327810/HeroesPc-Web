@@ -1,44 +1,53 @@
 export default function ProductCard({ producto, onAddToCart, onSelectProduct }) {
-  const hasStock = producto.stock > 0;
-  const img =
-    producto.imagen_url || 'https://via.placeholder.com/160x160?text=Hardware';
+  const sinStock = Number(producto.stock) <= 0;
 
   return (
-    <article className="product-card-horizontal">
+    <article className="product-card">
       <div
-        className="card-img-box clickable"
-        onClick={() => onSelectProduct(producto)}
-        title="Ver especificaciones"
+        className="product-img-wrap"
+        onClick={() => onSelectProduct && onSelectProduct(producto)}
       >
-        <img src={img} alt={producto.nombre} className="product-img" />
+        <img
+          src={
+            producto.imagen_url ||
+            'https://images.unsplash.com/photo-1587202372775-e229f172b9d7?w=500'
+          }
+          alt={producto.nombre}
+          loading="lazy"
+        />
+        <span className={`stock-badge ${sinStock ? 'out-stock' : 'in-stock'}`}>
+          {sinStock ? 'Agotado' : `${producto.stock} disp.`}
+        </span>
       </div>
 
-      <div className="card-info-box">
-        <div>
-          <h4
-            className="product-title clickable"
-            onClick={() => onSelectProduct(producto)}
-          >
-            {producto.nombre} ({producto.sku})
-          </h4>
-          <div className="product-price">
-            $ {Number(producto.precio).toLocaleString('es-MX', {
+      <div className="product-body">
+        <span className="product-sku">{producto.sku}</span>
+        <h3
+          className="product-title"
+          onClick={() => onSelectProduct && onSelectProduct(producto)}
+        >
+          {producto.nombre}
+        </h3>
+        <p className="product-desc">
+          {producto.descripcion || 'Componente de alto rendimiento para ensamble PC.'}
+        </p>
+
+        <div className="product-footer">
+          <span className="product-price">
+            $
+            {Number(producto.precio).toLocaleString('es-MX', {
               minimumFractionDigits: 2,
             })}
-          </div>
-          <div className={`stock-text ${hasStock ? '' : 'out'}`}>
-            {hasStock ? `Stock: ${producto.stock} disp.` : 'Agotado'}
-          </div>
+          </span>
+          <button
+            type="button"
+            className="btn-add-cart"
+            disabled={sinStock}
+            onClick={() => onAddToCart(producto)}
+          >
+            {sinStock ? 'Sin stock' : 'Agregar'}
+          </button>
         </div>
-
-        <button
-          className="btn-add-compact"
-          type="button"
-          disabled={!hasStock}
-          onClick={() => onAddToCart(producto)}
-        >
-          {hasStock ? 'Agregar al carrito' : 'Sin existencias'}
-        </button>
       </div>
     </article>
   );

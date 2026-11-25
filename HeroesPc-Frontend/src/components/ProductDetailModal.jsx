@@ -1,149 +1,222 @@
-import { useState, useEffect } from 'react';
-import { X, ShoppingCart, ShieldCheck, Truck, Cpu, CheckCircle2 } from 'lucide-react';
+import { X, ShoppingCart, ShieldCheck, Truck, CheckCircle2, AlertCircle } from 'lucide-react';
 
-export default function ProductDetailModal({
-  producto,
-  onClose,
-  onAddToCart,
-}) {
-  const [cantidad, setCantidad] = useState(1);
-
-  useEffect(() => {
-    setCantidad(1);
-  }, [producto]);
-
+export default function ProductDetailModal({ producto, onClose, onAddToCart }) {
   if (!producto) return null;
 
-  const hasStock = producto.stock > 0;
-  const img =
-    producto.imagen_url || 'https://via.placeholder.com/300x300?text=Hardware+PC';
-
-  const handleAddMultiple = () => {
-    for (let i = 0; i < cantidad; i++) {
-      onAddToCart(producto);
-    }
-    onClose();
-  };
+  const sinStock = Number(producto.stock) <= 0;
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="detail-modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="modal-card"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: '#ffffff',
+          color: '#0f172a',
+          width: '94%',
+          maxWidth: '760px',
+          borderRadius: '16px',
+          padding: '24px',
+          position: 'relative',
+          boxShadow: '0 24px 50px rgba(15, 23, 42, 0.35)',
+        }}
+      >
         <button
           type="button"
-          className="detail-close-btn"
-          aria-label="Cerrar detalle"
           onClick={onClose}
+          aria-label="Cerrar detalle"
+          style={{
+            position: 'absolute',
+            top: '16px',
+            right: '16px',
+            background: '#f1f5f9',
+            border: '1px solid #e2e8f0',
+            borderRadius: '8px',
+            width: '36px',
+            height: '36px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            color: '#0f172a',
+          }}
         >
-          <X size={22} />
+          <X size={20} />
         </button>
 
-        <div className="detail-grid">
-          {/* Columna Izquierda: Imagen */}
-          <div className="detail-img-stage">
-            <img src={img} alt={producto.nombre} />
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+            gap: '24px',
+            alignItems: 'center',
+          }}
+        >
+          <div
+            style={{
+              background: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderRadius: '12px',
+              padding: '20px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              height: '290px',
+            }}
+          >
+            <img
+              src={
+                producto.imagen_url ||
+                'https://images.unsplash.com/photo-1587202372775-e229f172b9d7?w=500'
+              }
+              alt={producto.nombre}
+              style={{
+                maxWidth: '100%',
+                maxHeight: '100%',
+                objectFit: 'contain',
+                borderRadius: '8px',
+              }}
+            />
           </div>
 
-          {/* Columna Derecha: Especificaciones y Compra */}
-          <div className="detail-info">
-            <div className="detail-badges">
-              {producto.categoria && (
-                <span className="detail-cat-badge">
-                  {producto.categoria.nombre_categoria}
-                </span>
-              )}
-              <span className="detail-sku">SKU: {producto.sku}</span>
-            </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <span
+              style={{
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                color: '#64748b',
+                letterSpacing: '0.5px',
+              }}
+            >
+              {producto.sku}
+            </span>
 
-            <h2 className="detail-title">{producto.nombre}</h2>
+            <h2
+              style={{
+                margin: 0,
+                fontSize: '1.35rem',
+                fontWeight: 800,
+                lineHeight: 1.3,
+                color: '#0f172a',
+                paddingRight: '28px',
+              }}
+            >
+              {producto.nombre}
+            </h2>
 
-            <div className="detail-price-box">
-              <span className="detail-price">
-                $
-                {Number(producto.precio).toLocaleString('es-MX', {
-                  minimumFractionDigits: 2,
-                })}{' '}
-                <small>MXN</small>
+            <div
+              style={{
+                fontSize: '1.6rem',
+                fontWeight: 800,
+                color: '#ea580c',
+              }}
+            >
+              $
+              {Number(producto.precio).toLocaleString('es-MX', {
+                minimumFractionDigits: 2,
+              })}{' '}
+              <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: 600 }}>
+                MXN
               </span>
-              <span className="detail-tax">IVA incluido</span>
             </div>
 
-            <div className={`detail-stock ${hasStock ? 'in' : 'out'}`}>
-              <CheckCircle2 size={16} />
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '0.84rem',
+                fontWeight: 600,
+                color: sinStock ? '#dc2626' : '#16a34a',
+              }}
+            >
+              {sinStock ? <AlertCircle size={16} /> : <CheckCircle2 size={16} />}
               <span>
-                {hasStock
-                  ? `Disponible para envío inmediato (${producto.stock} unidades)`
-                  : 'Producto agotado temporalmente'}
+                {sinStock
+                  ? 'Agotado temporalmente'
+                  : `En stock inmediato (${producto.stock} unidades)`}
               </span>
             </div>
 
-            {/* Ficha Técnica / Descripción */}
-            <div className="detail-specs-box">
-              <h4>
-                <Cpu size={16} />
-                <span>Especificaciones y Descripción</span>
-              </h4>
-              <p>
+            <div
+              style={{
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                borderRadius: '10px',
+                padding: '12px',
+                fontSize: '0.84rem',
+                color: '#334155',
+              }}
+            >
+              <strong style={{ display: 'block', marginBottom: '4px', color: '#0f172a' }}>
+                Especificaciones / Descripción
+              </strong>
+              <p style={{ margin: 0, lineHeight: 1.5 }}>
                 {producto.descripcion ||
-                  'Componente de hardware original con garantía oficial del fabricante y compatibilidad verificada por HEROES PC.'}
+                  'Componente de alto rendimiento seleccionado para ensambles HEROES PC.'}
               </p>
-
-              <ul className="detail-tech-list">
-                <li>
-                  <strong>Código de inventario:</strong> {producto.sku}
-                </li>
-                {producto.proveedor && (
-                  <li>
-                    <strong>Distribuidor / Marca:</strong>{' '}
-                    {producto.proveedor.nombre_empresa}
-                  </li>
-                )}
-                <li>
-                  <strong>Garantía:</strong> 12 meses directo con HEROES PC
-                </li>
+              <ul
+                style={{
+                  margin: '10px 0 0',
+                  paddingLeft: '18px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px',
+                  fontSize: '0.8rem',
+                  color: '#475569',
+                }}
+              >
+                <li>Código de inventario: {producto.sku}</li>
+                <li>Garantía: 12 meses directo con HEROES PC</li>
               </ul>
             </div>
 
-            {/* Selector de Cantidad y Botón de Carrito */}
-            {hasStock && (
-              <div className="detail-buy-row">
-                <div className="qty-selector">
-                  <button
-                    type="button"
-                    onClick={() => setCantidad((q) => Math.max(1, q - 1))}
-                  >
-                    −
-                  </button>
-                  <span>{cantidad}</span>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setCantidad((q) => Math.min(producto.stock, q + 1))
-                    }
-                  >
-                    +
-                  </button>
-                </div>
+            <button
+              type="button"
+              disabled={sinStock}
+              onClick={() => {
+                onAddToCart(producto);
+                onClose();
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                width: '100%',
+                background: sinStock ? '#cbd5e1' : '#ea580c',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '10px',
+                padding: '12px 16px',
+                fontSize: '0.95rem',
+                fontWeight: 700,
+                cursor: sinStock ? 'not-allowed' : 'pointer',
+              }}
+            >
+              <ShoppingCart size={18} />
+              <span>{sinStock ? 'Sin stock disponible' : 'Agregar al carrito'}</span>
+            </button>
 
-                <button
-                  type="button"
-                  className="btn-detail-add"
-                  onClick={handleAddMultiple}
-                >
-                  <ShoppingCart size={18} />
-                  <span>Agregar al carrito</span>
-                </button>
-              </div>
-            )}
-
-            <div className="detail-perks">
-              <div>
-                <Truck size={15} />
-                <span>Envío gratis en compras mayores a $2,500 MXN</span>
-              </div>
-              <div>
-                <ShieldCheck size={15} />
-                <span>Compra protegida y empaque antiestático</span>
-              </div>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '6px',
+                paddingTop: '8px',
+                borderTop: '1px solid #e2e8f0',
+                fontSize: '0.78rem',
+                color: '#64748b',
+              }}
+            >
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                <Truck size={15} color="#ea580c" />
+                Envío gratis en compras mayores a $2,500 MXN
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                <ShieldCheck size={15} color="#16a34a" />
+                Compra protegida y empaque antiestático
+              </span>
             </div>
           </div>
         </div>

@@ -1,84 +1,139 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo, useCallback, lazy, Suspense } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import api from './api/axiosClient';
 import Navbar from './components/Navbar';
 import ProductCard from './components/ProductCard';
 import CartDrawer from './components/CartDrawer';
 import AuthModal from './components/AuthModal';
-import CheckoutModal from './components/CheckoutModal';
-import AdminPanel from './components/AdminPanel';
-import MyOrdersModal from './components/MyOrdersModal';
 import ProductDetailModal from './components/ProductDetailModal';
-import PcBuilder from './components/PcBuilder';
 import './App.css';
 
-const API_URL = 'http://localhost:3000/api';
+// Carga diferida: Three.js y los modales pesados solo se descargan cuando los abres
+const PcBuilder = lazy(() => import('./components/PcBuilder'));
+const CheckoutModal = lazy(() => import('./components/CheckoutModal'));
+const AdminPanel = lazy(() => import('./components/AdminPanel'));
+const MyOrdersModal = lazy(() => import('./components/MyOrdersModal'));
+
+const ITEMS_PER_PAGE = 16;
 
 export default function App() {
-  const [productos, setProductos] = useState([]);
-  const [categorias, setCategorias] = useState([]);
+  const queryClient = useQueryClient();
   const [selectedCat, setSelectedCat] = useState('all');
   const [search, setSearch] = useState('');
   const [onlyStock, setOnlyStock] = useState(false);
   const [sortBy, setSortBy] = useState('default');
+  const [visibleLimit, setVisibleLimit] = useState(ITEMS_PER_PAGE);
+
   const [cart, setCart] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
-  const [activeView, setActiveView] = useState('store'); // 'store' | 'builder' | 'admin'
+  const [activeView, setActiveView] = useState('store');
   const [isOrdersOpen, setIsOrdersOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [user, setUser] = useState(() => {
-    const saved = localStorage.getItem('heroespc_user');
-    return saved ? JSON.parse(saved) : null;
-  });
-  const [loading, setLoading] = useState(true);
-
-  const fetchData = async () => {
     try {
-      const [resCat, resProd] = await Promise.all([
-        fetch(`${API_URL}/categorias`),
-        fetch(`${API_URL}/productos`),
-      ]);
-      const dataCat = await resCat.json();
-      const dataProd = await resProd.json();
-      setCategorias(Array.isArray(dataCat) ? dataCat : []);
-      setProductos(Array.isArray(dataProd) ? dataProd : []);
-    } catch (error) {
-      console.error('Error cargando datos del backend:', error);
-    } finally {
-      setLoading(false);
+      const saved = localStorage.getItem('heroespc_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
     }
-  };
+  });
+
+  const { data: categorias = [] } = useQuery({
+    queryKey: ['categorias'],
+    queryFn: async () => {
+      const { data } = await api.get('/categorias');
+      return Array.isArray(data) ? data : [];
+    },
+    staleTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false,
+  });
+
+  const { data: productos = [], isLoading: loading } = useQuery({
+    queryKey: ['productos'],
+    queryFn: async () => {
+      const { data } = await api.get('/productos');
+      return Array.isArray(data) ? data : [];
+    },
+    staleTime: 1000 * 60 * 2,
+    refetchOnWindowFocus: false,
+  });
+
+  const refreshData = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['categorias'] });
+    queryClient.invalidateQueries({ queryKey: ['productos'] });
+  }, [queryClient]);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    const params = new URLSearchParams(window.location.search);
+    const pagoStatus = params.get('pago');
+    if (pagoStatus) {
+      if (pagoStatus === 'aprobado') {
+        alert('¡Pago aprobado en Mercado Pago! Tu pedido ha sido confirmado.');
+        setCart([]);
+        refreshData();
+      } else if (pagoStatus === 'pendiente') {
+        alert('Tu pago en Mercado Pago está pendiente de acreditación.');
+      } else if (pagoStatus === 'fallido') {
+        alert('El pago en Mercado Pago no se completó. Puedes intentarlo nuevamente.');
+      }
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, [refreshData]);
+
+  // Reinicia el límite visible al cambiar de categoría, búsqueda u orden
+  useEffect(() => {
+    setVisibleLimit(ITEMS_PER_PAGE);
+  }, [selectedCat, search, onlyStock, sortBy]);
 
   const handleLoginSuccess = (userData) => {
     setUser(userData);
     localStorage.setItem('heroespc_user', JSON.stringify(userData));
+    if (userData?.rol?.toLowerCase() === 'admin') {
+      setActiveView('admin');
+    }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await api.post('/usuarios/logout');
+    } catch (error) {
+      console.error('Error cerrando sesión:', error);
+    }
     setUser(null);
     localStorage.removeItem('heroespc_user');
+    if (activeView === 'admin') {
+      setActiveView('store');
+    }
   };
 
-  const filteredProducts = productos
-    .filter((p) => {
-      const matchCat = selectedCat === 'all' || p.id_categoria === selectedCat;
-      const matchSearch =
-        p.nombre.toLowerCase().includes(search.toLowerCase()) ||
-        p.sku.toLowerCase().includes(search.toLowerCase());
-      const matchStock = !onlyStock || p.stock > 0;
-      return matchCat && matchSearch && matchStock;
-    })
-    .sort((a, b) => {
-      if (sortBy === 'price-asc') return Number(a.precio) - Number(b.precio);
-      if (sortBy === 'price-desc') return Number(b.precio) - Number(a.precio);
-      return 0;
-    });
+  const filteredProducts = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return productos
+      .filter((p) => {
+        if (p.sku?.toUpperCase() === 'SRV-BUILD-01') return false;
+        const matchCat = selectedCat === 'all' || p.id_categoria === selectedCat;
+        const matchSearch =
+          !term ||
+          p.nombre.toLowerCase().includes(term) ||
+          p.sku.toLowerCase().includes(term);
+        const matchStock = !onlyStock || p.stock > 0;
+        return matchCat && matchSearch && matchStock;
+      })
+      .sort((a, b) => {
+        if (sortBy === 'price-asc') return Number(a.precio) - Number(b.precio);
+        if (sortBy === 'price-desc') return Number(b.precio) - Number(a.precio);
+        return 0;
+      });
+  }, [productos, selectedCat, search, onlyStock, sortBy]);
 
-  const handleAddToCart = (producto) => {
+  const visibleProducts = useMemo(
+    () => filteredProducts.slice(0, visibleLimit),
+    [filteredProducts, visibleLimit]
+  );
+
+  const handleAddToCart = useCallback((producto) => {
     setCart((prev) => {
       const exists = prev.find((item) => item.id_producto === producto.id_producto);
       if (exists) {
@@ -91,16 +146,29 @@ export default function App() {
       }
       return [...prev, { ...producto, cantidad: 1 }];
     });
-  };
+  }, []);
 
-  const handleAddBuildToCart = (partsList) => {
-    partsList.forEach((part) => handleAddToCart(part));
+  const handleAddBuildToCart = useCallback((partsList) => {
+    setCart((prev) => {
+      let next = [...prev];
+      partsList.forEach((part) => {
+        const idx = next.findIndex((i) => i.id_producto === part.id_producto);
+        if (idx >= 0) {
+          if (next[idx].cantidad < part.stock) {
+            next[idx] = { ...next[idx], cantidad: next[idx].cantidad + 1 };
+          }
+        } else {
+          next.push({ ...part, cantidad: 1 });
+        }
+      });
+      return next;
+    });
     setIsCartOpen(true);
-  };
+  }, []);
 
-  const handleRemoveFromCart = (idProducto) => {
+  const handleRemoveFromCart = useCallback((idProducto) => {
     setCart((prev) => prev.filter((item) => item.id_producto !== idProducto));
-  };
+  }, []);
 
   const handleOpenCheckout = () => {
     setIsCartOpen(false);
@@ -116,15 +184,20 @@ export default function App() {
       `¡Compra aprobada!\nPedido #${idPedido} registrado correctamente.\nMétodo: ${metodo}`
     );
     setCart([]);
-    fetchData();
+    refreshData();
   };
+
+  const cartCount = useMemo(
+    () => cart.reduce((acc, item) => acc + item.cantidad, 0),
+    [cart]
+  );
 
   return (
     <div className="app">
       <Navbar
         search={search}
         setSearch={setSearch}
-        cartCount={cart.reduce((acc, item) => acc + item.cantidad, 0)}
+        cartCount={cartCount}
         onOpenCart={() => setIsCartOpen(true)}
         user={user}
         onOpenAuth={() => setIsAuthOpen(true)}
@@ -134,20 +207,24 @@ export default function App() {
         onChangeView={setActiveView}
       />
 
-      {activeView === 'admin' ? (
-        <AdminPanel
-          productos={productos}
-          categorias={categorias}
-          onBackToStore={() => setActiveView('store')}
-          onDataUpdated={fetchData}
-        />
+      {activeView === 'admin' && user?.rol?.toLowerCase() === 'admin' ? (
+        <Suspense fallback={<div className="container" style={{ padding: '40px' }}>Cargando panel...</div>}>
+          <AdminPanel
+            productos={productos}
+            categorias={categorias}
+            onBackToStore={() => setActiveView('store')}
+            onDataUpdated={refreshData}
+          />
+        </Suspense>
       ) : activeView === 'builder' ? (
-        <PcBuilder
-          productos={productos}
-          categorias={categorias}
-          onAddBuildToCart={handleAddBuildToCart}
-          onBackToStore={() => setActiveView('store')}
-        />
+        <Suspense fallback={<div className="container" style={{ padding: '40px' }}>Cargando configurador 3D...</div>}>
+          <PcBuilder
+            productos={productos}
+            categorias={categorias}
+            onAddBuildToCart={handleAddBuildToCart}
+            onBackToStore={() => setActiveView('store')}
+          />
+        </Suspense>
       ) : (
         <>
           <nav className="cat-bar">
@@ -238,16 +315,31 @@ export default function App() {
               {loading ? (
                 <p>Cargando catálogo desde PostgreSQL...</p>
               ) : (
-                <div className="products-grid-two-col">
-                  {filteredProducts.map((prod) => (
-                    <ProductCard
-                      key={prod.id_producto}
-                      producto={prod}
-                      onAddToCart={handleAddToCart}
-                      onSelectProduct={setSelectedProduct}
-                    />
-                  ))}
-                </div>
+                <>
+                  <div className="products-grid-two-col">
+                    {visibleProducts.map((prod) => (
+                      <ProductCard
+                        key={prod.id_producto}
+                        producto={prod}
+                        onAddToCart={handleAddToCart}
+                        onSelectProduct={setSelectedProduct}
+                      />
+                    ))}
+                  </div>
+
+                  {visibleLimit < filteredProducts.length && (
+                    <div style={{ textAlign: 'center', marginTop: '24px' }}>
+                      <button
+                        type="button"
+                        className="btn-add-cart"
+                        style={{ padding: '11px 24px', fontSize: '0.92rem' }}
+                        onClick={() => setVisibleLimit((prev) => prev + ITEMS_PER_PAGE)}
+                      >
+                        Mostrar más productos ({filteredProducts.length - visibleLimit} restantes)
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </section>
           </main>
@@ -267,23 +359,33 @@ export default function App() {
         onClose={() => setIsAuthOpen(false)}
         onLoginSuccess={(u) => {
           handleLoginSuccess(u);
-          if (cart.length > 0) setIsCheckoutOpen(true);
+          if (cart.length > 0 && u?.rol?.toLowerCase() !== 'admin') {
+            setIsCheckoutOpen(true);
+          }
         }}
       />
 
-      <CheckoutModal
-        isOpen={isCheckoutOpen}
-        onClose={() => setIsCheckoutOpen(false)}
-        cart={cart}
-        user={user}
-        onOrderSuccess={handleOrderSuccess}
-      />
+      {isCheckoutOpen && (
+        <Suspense fallback={null}>
+          <CheckoutModal
+            isOpen={isCheckoutOpen}
+            onClose={() => setIsCheckoutOpen(false)}
+            cart={cart}
+            user={user}
+            onOrderSuccess={handleOrderSuccess}
+          />
+        </Suspense>
+      )}
 
-      <MyOrdersModal
-        isOpen={isOrdersOpen}
-        onClose={() => setIsOrdersOpen(false)}
-        user={user}
-      />
+      {isOrdersOpen && (
+        <Suspense fallback={null}>
+          <MyOrdersModal
+            isOpen={isOrdersOpen}
+            onClose={() => setIsOrdersOpen(false)}
+            user={user}
+          />
+        </Suspense>
+      )}
 
       <ProductDetailModal
         producto={selectedProduct}

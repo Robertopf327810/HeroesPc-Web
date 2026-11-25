@@ -1,4 +1,13 @@
-import { ShoppingCart, Search, User, LogOut, Settings, Package } from 'lucide-react';
+import {
+  Search,
+  ShoppingCart,
+  User,
+  LogOut,
+  Package,
+  Cpu,
+  Shield,
+} from 'lucide-react';
+import heroesLogo from '../assets/HEROESPC-LOGO.png';
 
 export default function Navbar({
   search,
@@ -9,79 +18,134 @@ export default function Navbar({
   onOpenAuth,
   onOpenOrders,
   onLogout,
-  isAdminView,
-  onToggleAdmin,
+  activeView,
+  onChangeView,
 }) {
+  const isAdmin = user?.rol?.toLowerCase() === 'admin';
+
   return (
     <header className="navbar">
       <div className="container nav-content">
-        <a
-          href="#"
+        <div
           className="logo-brand"
-          onClick={(e) => {
-            e.preventDefault();
-            if (isAdminView) onToggleAdmin();
+          onClick={() => onChangeView('store')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            cursor: 'pointer',
           }}
         >
           <img
-            src="/HEROESPC-LOGO.jpg"
-            alt="Heroes PC Logo"
+            src={heroesLogo}
+            alt="HEROES PC Games & Hardware"
             className="brand-emblem"
           />
-          <span className="brand-name">HEROES PC</span>
-        </a>
+          <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
+            <span
+              style={{
+                fontWeight: 900,
+                fontSize: '1.15rem',
+                letterSpacing: '0.5px',
+                color: '#ffffff',
+              }}
+            >
+              HEROES PC
+            </span>
+            <span
+              style={{
+                fontSize: '0.62rem',
+                fontWeight: 700,
+                letterSpacing: '1.6px',
+                color: '#ea580c',
+                textTransform: 'uppercase',
+              }}
+            >
+              GAMES &amp; HARDWARE
+            </span>
+          </div>
+        </div>
 
-        <div className="search-bar">
+        <div className="search-box">
           <input
             type="text"
             placeholder="Buscar procesadores, tarjetas gráficas, laptops, SKU..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              if (activeView !== 'store') onChangeView('store');
+            }}
           />
-          <button type="button" aria-label="Buscar">
+          <button
+            type="button"
+            className="search-btn"
+            aria-label="Buscar"
+            onClick={() => {
+              if (activeView !== 'store') onChangeView('store');
+            }}
+          >
             <Search size={18} />
           </button>
         </div>
 
         <div className="nav-actions">
           <button
-            className={`btn-icon ${isAdminView ? 'btn-admin-active' : ''}`}
             type="button"
-            onClick={onToggleAdmin}
+            className={`nav-btn ${activeView === 'builder' ? 'active-nav' : ''}`}
+            onClick={() =>
+              onChangeView(activeView === 'builder' ? 'store' : 'builder')
+            }
           >
-            <Settings size={18} />
-            <span>{isAdminView ? 'Tienda' : 'Admin'}</span>
+            <Cpu size={17} />
+            <span>Arma tu PC</span>
           </button>
 
-          {user ? (
-            <div className="user-pill">
-              <button
-                type="button"
-                className="btn-user-orders"
-                title="Ver Mis Pedidos"
-                onClick={onOpenOrders}
-              >
-                <Package size={16} />
-                <span>Mis Pedidos ({user.nombre.split(' ')[0]})</span>
-              </button>
-              <button
-                type="button"
-                className="btn-logout"
-                title="Cerrar sesión"
-                onClick={onLogout}
-              >
-                <LogOut size={16} />
-              </button>
-            </div>
-          ) : (
-            <button className="btn-icon" type="button" onClick={onOpenAuth}>
-              <User size={18} />
-              <span>Mi Cuenta</span>
+          {isAdmin && (
+            <button
+              type="button"
+              className={`nav-btn ${activeView === 'admin' ? 'active-nav' : ''}`}
+              onClick={() =>
+                onChangeView(activeView === 'admin' ? 'store' : 'admin')
+              }
+            >
+              <Shield size={17} />
+              <span>Admin</span>
             </button>
           )}
 
-          <button className="btn-cart" type="button" onClick={onOpenCart}>
-            <ShoppingCart size={18} />
+          {user ? (
+            <>
+              <button
+                type="button"
+                className="nav-btn"
+                onClick={onOpenOrders}
+              >
+                <Package size={17} />
+                <span>Mis Pedidos ({user.nombre})</span>
+              </button>
+              <button
+                type="button"
+                className="nav-btn icon-only"
+                onClick={onLogout}
+                title="Cerrar sesión"
+                aria-label="Cerrar sesión"
+              >
+                <LogOut size={17} />
+              </button>
+            </>
+          ) : (
+            <button type="button" className="nav-btn" onClick={onOpenAuth}>
+              <User size={17} />
+              <span>Iniciar Sesión</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            className="nav-btn cart-btn"
+            onClick={onOpenCart}
+          >
+            <ShoppingCart size={17} />
             <span>Carrito ({cartCount})</span>
           </button>
         </div>
